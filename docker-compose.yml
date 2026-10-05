@@ -1,0 +1,88 @@
+name: docs-qa
+
+x-backend: &backend
+  build:
+    context: backend
+  environment: &backend-environment
+    DATABASE__URL: postgresql+asyncpg://${POSTGRES_USER:-docs_qa}:${POSTGRES_PASSWORD:-docs_qa}@postgres:5432/${POSTGRES_DB:-docs_qa}
+    EMBEDDING__OLLAMA_URL: http://ollama:11434
+
+services:
+  postgres:
+    image: pgvector/pgvector:0.8.7-pg17
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-docs_qa}
+      POSTGRES_USER: ${POSTGRES_USER:-docs_qa}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-docs_qa}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  ollama:
+    image: ollama/ollama:0.35.1
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama-models:/root/.ollama
+    healthcheck:
+      test: ["CMD", "ollama", "list"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  # One-shot: downloads the embedding model into the shared volume (about 270 MB, first run only).
+  ollama-pull:
+    image: ollama/ollama:0.35.1
+    entrypoint: ["ollama", "pull", "nomic-embed-text"]
+    environment:
+      OLLAMA_HOST: ollama:11434
+    depends_on:
+      ollama:
+        condition: service_healthy
+
+  migrator:
+    <<: *backend
+    command: ["alembic", "upgrade", "head"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  api:
+    <<: *backend
+    environment:
+      <<: *backend-environment
+      OPENAI__API_KEY: ${OPENAI_API_KEY:-}
+      OPENAI__MODEL: ${OPENAI_MODEL:-gpt-5.4-mini}
+      AUTH__API_KEYS: '{"${EDITOR_API_KEY:-dev-editor-key}": "EDITOR", "${READER_API_KEY:-dev-reader-key}": "READER"}'
+    depends_on:
+      migrator:
+        condition: service_completed_successfully
+      ollama-pull:
+        condition: service_completed_successfully
+
+  worker:
+    <<: *backend
+    command: ["python", "-m", "docs_qa.worker"]
+    depends_on:
+      migrator:
+        condition: service_completed_successfully
+      ollama-pull:
+        condition: service_completed_successfully
+
+  web:
+    build:
+      context: frontend
+    ports:
+      - "8080:8080"
+    depends_on:
+      - api
+
+volumes:
+  postgres-data:
+  ollama-models:
