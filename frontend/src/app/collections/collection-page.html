@@ -1,0 +1,21 @@
+<a routerLink="/collections" class="back">← Collections</a>
+
+@if (error()) {
+  <p class="error" role="alert">{{ error() }}</p>
+}
+
+@if (collection(); as collection) {
+  <header class="page-header row spread">
+    <h1>{{ collection.name }}</h1>
+    @if (session.isEditor()) {
+      <button type="button" class="danger" (click)="remove(collection)">Delete collection</button>
+    }
+  </header>
+
+  <div class="columns">
+    <div class="stack">
+      <app-ask-panel [collectionId]="collection.id" />
+    </div>
+    <app-document-panel [collectionId]="collection.id" />
+  </div>
+}

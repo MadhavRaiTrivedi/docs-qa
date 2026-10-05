@@ -1,0 +1,66 @@
+<section class="card">
+  <header class="row spread">
+    <h2>Documents</h2>
+    @if (session.isEditor()) {
+      <label class="button secondary file-button">
+        {{ isUploading() ? 'Uploading…' : 'Upload' }}
+        <input
+          type="file"
+          multiple
+          [accept]="acceptedFileTypes"
+          [disabled]="isUploading()"
+          (change)="upload($event)"
+        />
+      </label>
+    }
+  </header>
+  <p class="muted small">PDF, Markdown or plain text. Uploads are searchable once ready.</p>
+
+  @if (error()) {
+    <p class="error" role="alert">{{ error() }}</p>
+  }
+
+  @for (document of documents(); track document.id) {
+    <div class="list-item document">
+      <div class="stack tight">
+        <strong>{{ document.fileName }}</strong>
+        <span class="muted small">
+          {{ document.sizeBytes / bytesPerKilobyte | number: '1.0-0' }} KB
+          @if (document.pageCount) {
+            · {{ document.pageCount }} pages
+          }
+          @if (document.status === DocumentStatus.Ready) {
+            · {{ document.chunkCount }} passages
+          }
+          @if (document.replacesDocumentId) {
+            · new version
+          }
+        </span>
+        @if (document.failureReason) {
+          <span class="error small">{{ document.failureReason }}</span>
+        }
+      </div>
+      <div class="row actions">
+        <span class="badge" [attr.data-status]="document.status">{{ document.status }}</span>
+        @if (session.isEditor()) {
+          @if (document.status === DocumentStatus.Failed) {
+            <button type="button" class="secondary" (click)="retry(document)">Retry</button>
+          }
+          @if (document.status === DocumentStatus.Ready) {
+            <label class="button secondary file-button">
+              Replace
+              <input
+                type="file"
+                [accept]="acceptedFileTypes"
+                (change)="replace(document, $event)"
+              />
+            </label>
+          }
+          <button type="button" class="danger" (click)="remove(document)">Delete</button>
+        }
+      </div>
+    </div>
+  } @empty {
+    <p class="muted">No documents yet.</p>
+  }
+</section>

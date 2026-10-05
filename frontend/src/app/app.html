@@ -1,0 +1,12 @@
+<nav class="topbar">
+  <a routerLink="/" class="brand">Docs Q&amp;A</a>
+  <span class="spacer"></span>
+  @if (session.current(); as user) {
+    <span class="badge">{{ user.role }}</span>
+    <button type="button" class="secondary" (click)="signOut()">Sign out</button>
+  }
+</nav>
+
+<main>
+  <router-outlet />
+</main>

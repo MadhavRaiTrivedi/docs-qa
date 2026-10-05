@@ -1,0 +1,63 @@
+<section class="card">
+  <h2>Ask</h2>
+  <form [formGroup]="form" (ngSubmit)="ask()" class="stack">
+    <textarea
+      formControlName="question"
+      rows="3"
+      placeholder="e.g. How many days of sick leave do I get?"
+      aria-label="Question"
+      (keydown.control.enter)="ask()"
+    ></textarea>
+    <div class="row">
+      <button type="submit" [disabled]="form.invalid || isAsking()">
+        {{ isAsking() ? 'Answering…' : 'Ask' }}
+      </button>
+    </div>
+  </form>
+
+  @if (error()) {
+    <p class="error" role="alert">{{ error() }}</p>
+  }
+
+  @if (answer() || sources().length > 0) {
+    <app-answer-view
+      [answer]="answer()"
+      [sources]="sources()"
+      [outcome]="outcome()"
+      [questionId]="questionId()"
+      [rating]="rating()"
+    />
+  }
+
+  @if (searchHits(); as hits) {
+    <p class="notice">
+      Answer generation is not configured (no OpenAI API key), so these are the passages that best
+      match your question.
+    </p>
+    <ol class="sources">
+      @for (hit of hits; track hit.chunkId) {
+        <li class="source">
+          <div class="row spread">
+            <strong>{{ hit.fileName }}</strong>
+            <span class="muted small">{{ describeLocation(hit) }}</span>
+          </div>
+          <p class="source-text">{{ hit.text }}</p>
+        </li>
+      } @empty {
+        <li class="muted">No passages match.</li>
+      }
+    </ol>
+  }
+</section>
+
+@if (recent().length > 0) {
+  <section class="card">
+    <h2>Recent questions</h2>
+    @for (question of recent(); track question.id) {
+      <button type="button" class="list-item link-like" (click)="show(question)">
+        <span>{{ question.question }}</span>
+        <span class="muted small">{{ question.createdAt | date: 'short' }}</span>
+      </button>
+    }
+  </section>
+}

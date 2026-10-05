@@ -1,0 +1,74 @@
+<article class="answer">
+  @switch (outcome()) {
+    @case (AnswerOutcome.NotInDocuments) {
+      <span class="badge warning">Not in the documents</span>
+    }
+    @case (AnswerOutcome.Unsupported) {
+      <span class="badge warning" title="The model gave no citations; check the sources yourself">
+        No sources cited
+      </span>
+    }
+  }
+
+  <p class="answer-text">
+    @for (segment of segments(); track $index) {
+      @if (segment.kind === 'text') {
+        {{ segment.text }}
+      } @else {
+        <button
+          type="button"
+          class="citation"
+          [attr.aria-label]="'Show source ' + segment.number"
+          (click)="showSource(segment.number)"
+        >
+          {{ segment.number }}
+        </button>
+      }
+    }
+  </p>
+
+  @if (questionId()) {
+    <div class="row feedback">
+      <span class="muted small">Was this helpful?</span>
+      <button
+        type="button"
+        class="secondary"
+        [class.active]="currentRating() === Rating.Helpful"
+        (click)="rate(Rating.Helpful)"
+      >
+        Yes
+      </button>
+      <button
+        type="button"
+        class="secondary"
+        [class.active]="currentRating() === Rating.NotHelpful"
+        (click)="rate(Rating.NotHelpful)"
+      >
+        No
+      </button>
+      @if (feedbackError()) {
+        <span class="error small">{{ feedbackError() }}</span>
+      }
+    </div>
+  }
+</article>
+
+@if (sources().length > 0) {
+  <h3>Sources</h3>
+  <ol class="sources">
+    @for (source of sources(); track source.chunkId) {
+      <li
+        [id]="'source-' + source.number"
+        class="source"
+        [class.cited]="source.isCited"
+        [class.highlighted]="highlighted() === source.number"
+      >
+        <div class="row spread">
+          <strong>[{{ source.number }}] {{ source.fileName }}</strong>
+          <span class="muted small">{{ describeLocation(source) }}</span>
+        </div>
+        <p class="source-text">{{ source.text }}</p>
+      </li>
+    }
+  </ol>
+}

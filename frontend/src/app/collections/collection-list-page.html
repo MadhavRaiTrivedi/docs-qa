@@ -1,0 +1,39 @@
+<header class="page-header">
+  <h1>Collections</h1>
+  <p class="muted">Each collection is a set of documents that are searched together.</p>
+</header>
+
+@if (session.isEditor()) {
+  <form [formGroup]="createForm" (ngSubmit)="create()" class="row search">
+    <input formControlName="name" placeholder="New collection name" aria-label="Collection name" />
+    <button type="submit" [disabled]="createForm.invalid">Create</button>
+  </form>
+}
+
+@if (error()) {
+  <p class="error" role="alert">{{ error() }}</p>
+}
+
+<div class="grid">
+  @for (collection of collections(); track collection.id) {
+    <a class="card collection-card" [routerLink]="['/collections', collection.id]">
+      <strong>{{ collection.name }}</strong>
+      <span class="muted small">
+        {{ collection.readyDocumentCount }} of {{ collection.documentCount }} documents ready
+      </span>
+    </a>
+  } @empty {
+    @if (!isLoading()) {
+      <section class="card">
+        <p>No collections yet.</p>
+        <p class="muted">
+          Load the sample handbook with
+          <code
+            >docker compose run --rm api python -m docs_qa.seed samples/handbook --collection
+            "Brightline handbook"</code
+          >.
+        </p>
+      </section>
+    }
+  }
+</div>

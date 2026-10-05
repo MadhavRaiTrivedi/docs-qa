@@ -1,0 +1,21 @@
+<section class="card narrow">
+  <h1>Sign in</h1>
+  <p class="muted">
+    Enter an API key. Editor keys can upload documents; reader keys can search and ask. With the
+    default <code>docker compose</code> setup the keys are <code>dev-editor-key</code> and
+    <code>dev-reader-key</code>.
+  </p>
+
+  <form [formGroup]="form" (ngSubmit)="signIn()" class="stack">
+    <label>
+      API key
+      <input formControlName="apiKey" type="password" autocomplete="off" />
+    </label>
+
+    @if (error()) {
+      <p class="error" role="alert">{{ error() }}</p>
+    }
+
+    <button type="submit" [disabled]="form.invalid || isSubmitting()">Sign in</button>
+  </form>
+</section>
