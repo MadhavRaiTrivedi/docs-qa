@@ -5,7 +5,7 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from openai import OpenAIError
 
-from docs_qa.answering.errors import AnswerGenerationError, LlmNotConfiguredError
+from docs_qa.answering.errors import AnswerGenerationError, OpenAINotConfiguredError
 from docs_qa.auth.api_key import InsufficientRoleError, MissingApiKeyError
 from docs_qa.errors import NotFoundError
 from docs_qa.library.errors import (
@@ -27,7 +27,7 @@ _STATUS_BY_ERROR: dict[type[Exception], tuple[int, str]] = {
     FileTooLargeError: (status.HTTP_413_CONTENT_TOO_LARGE, "File too large"),
     MissingApiKeyError: (status.HTTP_401_UNAUTHORIZED, "Missing or invalid API key"),
     InsufficientRoleError: (status.HTTP_403_FORBIDDEN, "Forbidden"),
-    LlmNotConfiguredError: (status.HTTP_503_SERVICE_UNAVAILABLE, "Answer generation unavailable"),
+    OpenAINotConfiguredError: (status.HTTP_503_SERVICE_UNAVAILABLE, "OpenAI not configured"),
 }
 
 

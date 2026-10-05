@@ -20,7 +20,6 @@ Not recorded yet. A GIF of uploading the sample handbook and asking a question g
 - Hybrid search: vector similarity and PostgreSQL full-text search, merged with Reciprocal Rank Fusion
 - Answers streamed token by token, with `[n]` citations that link to the source passage
 - "Not in the documents" without calling the LLM when nothing relevant is found
-- Works without an OpenAI key: upload and search still run, and the UI shows the best matching passages
 - Every question stored with its sources, scores, token usage and latency; readers can rate answers
 - An evaluation command that reports hit rate and MRR on a fixed question set, and optionally judges answer faithfulness
 - API key authentication with reader and editor roles; errors as ProblemDetails
@@ -32,15 +31,14 @@ flowchart LR
     browser[Angular UI] -->|/api| web[nginx]
     web --> api[FastAPI API]
     api -->|SQL, vectors, full-text| pg[(PostgreSQL + pgvector)]
-    api -->|embed question| ollama[Ollama<br/>nomic-embed-text]
-    api -->|stream answer| openai[OpenAI<br/>Responses API]
+    api -->|embed question,<br/>stream answer| openai[OpenAI API]
     worker[Ingestion worker] -->|claim with SKIP LOCKED,<br/>write chunks| pg
-    worker -->|embed chunks| ollama
+    worker -->|embed chunks| openai
 ```
 
 Four processes run from two images: the API and the worker share the backend image, nginx serves the Angular build and proxies `/api`. PostgreSQL holds everything (collections, documents, the uploaded files, chunks with their vectors and full-text index, questions), and its `documents` table is also the ingestion queue.
 
-**Uploading a document.** `POST /api/collections/{id}/documents` checks the size and format, hashes the content, and inserts the document as `UPLOADED` with its bytes. It returns at once. The worker polls the table, claims the oldest waiting document with `SELECT ... FOR UPDATE SKIP LOCKED`, marks it `PROCESSING` with a lease, and commits. It then parses the file, splits it into chunks, and embeds them through Ollama. Finally, in one transaction, it re-checks its lease, inserts the chunks and marks the document `READY`.
+**Uploading a document.** `POST /api/collections/{id}/documents` checks the size and format, hashes the content, and inserts the document as `UPLOADED` with its bytes. It returns at once. The worker polls the table, claims the oldest waiting document with `SELECT ... FOR UPDATE SKIP LOCKED`, marks it `PROCESSING` with a lease, and commits. It then parses the file, splits it into chunks, and embeds them with OpenAI's embedding model. Finally, in one transaction, it re-checks its lease, inserts the chunks and marks the document `READY`.
 
 **Asking a question.** `POST /api/collections/{id}/questions/stream` embeds the question, runs a vector search and a full-text search, merges them with RRF and keeps the top 6 chunks. If none is similar enough, it answers "not in the documents" without calling the LLM. Otherwise it sends the chunks as numbered sources to OpenAI and streams the answer back as Server-Sent Events: first the sources, then text deltas, then the saved question with its parsed citations.
 
@@ -53,7 +51,7 @@ Four processes run from two images: the API and the worker share the backend ima
 | SQLAlchemy 2 (async) + asyncpg | Persistence | Typed `Mapped[...]` models, explicit transactions, `with_for_update(skip_locked=True)` | Raw asyncpg (more boilerplate), SQLModel |
 | Alembic | Migrations | Standard for SQLAlchemy; the HNSW and GIN indexes are written by hand in the migration | `create_all` (no history) |
 | PostgreSQL 17 + pgvector 0.8 | Vectors, full-text search, data, queue | One database for everything; HNSW index and iterative scan for filtered vector search | Qdrant/Weaviate (another service to run and keep in sync), Elasticsearch |
-| Ollama + nomic-embed-text | Embeddings | Runs locally in Docker for free; 768 dimensions; good retrieval quality for its size | OpenAI embeddings (cost, sends every document out), sentence-transformers in-process (bigger image) |
+| OpenAI `text-embedding-3-small` | Embeddings (1536 dimensions) | No model to host; strong retrieval quality; one provider and one key for the whole system | Ollama with nomic-embed-text (free and local, but another service and a model download; I used it first), sentence-transformers in-process (bigger image) |
 | OpenAI Responses API (`gpt-5.4-mini`) | Answer generation | Cheap and fast for short grounded answers; streaming; `store=false` | Claude (my first plan; its native citation blocks would replace marker parsing), a local LLM via Ollama (weak answers on CPU) |
 | pypdf | PDF text extraction | Pure Python, page-by-page text | PyMuPDF (AGPL license), unstructured (heavy) |
 | pydantic-settings | Configuration | Typed settings classes per concern, read from environment variables | Plain `os.environ` |
@@ -63,7 +61,7 @@ Four processes run from two images: the API and the worker share the backend ima
 | Angular 22 | Web UI | Signals, standalone components; matches my other projects | React |
 | Vitest, Prettier | Frontend tests and format | Angular's default test runner now; same setup as my other repos | Karma/Jasmine |
 | nginx | Serve UI, proxy API | Small image; buffering turned off for the answer stream | Serving the UI from FastAPI |
-| Docker Compose | Local run | One command starts the whole system, including the embedding model | Manual setup |
+| Docker Compose | Local run | One command starts the database, API, worker and UI | Manual setup |
 | GitHub Actions | CI | Lint, type check, unit and integration tests, frontend build, image build | |
 
 ## Project structure
@@ -114,6 +112,7 @@ docs/              requirements and domain model
 ## Design decisions and tradeoffs
 
 - **pgvector instead of a vector database.** One system to run, back up and keep consistent, with transactions across documents and chunks. I give up the specialised filtering and sharding of Qdrant or Weaviate. I would switch at tens of millions of chunks or when vector search needs to scale apart from the rest of the data.
+- **Hosted embeddings instead of a local model.** I started with Ollama and nomic-embed-text in a container, then moved to OpenAI's `text-embedding-3-small`: no model to download or host, better retrieval, and one key for everything. The cost is that every chunk is sent to OpenAI, and switching provider later means re-embedding every document. For documents that must not leave the network I would go back to a local model behind the same `Embedder` interface.
 - **Uploaded files in PostgreSQL.** The file and its document row commit together, and the worker needs no shared volume. It makes the database bigger; with large files or many of them I would move the bytes to object storage and keep only a key in the row.
 - **Polling instead of LISTEN/NOTIFY or a broker.** A one-second poll on an indexed column is cheap and cannot miss a wake-up. The cost is up to a second of extra latency before ingestion starts, which nobody notices for a background job.
 - **Word counts instead of tokens for chunk size.** Avoids shipping a tokenizer for a limit that only needs to be approximate. 300 words stay well under the embedding model's input limit.
@@ -159,14 +158,14 @@ CI runs all of these on every push.
 
 ## Running locally
 
-Prerequisites: Docker. An OpenAI API key is optional; without it, everything except generated answers works.
+Prerequisites: Docker and an OpenAI API key. Without the key the API starts and accepts uploads, but nothing is embedded or answered until it is set (then run `docker compose up -d` again).
 
 ```bash
-cp .env.example .env          # set OPENAI_API_KEY to enable answers
+cp .env.example .env          # set OPENAI_API_KEY
 docker compose up --build
 ```
 
-The first start downloads the embedding model (about 270 MB) into a volume. Then open http://localhost:8080 and sign in with `dev-editor-key` (or the `EDITOR_API_KEY` from `.env`).
+Open http://localhost:8080 and sign in with `dev-editor-key` (or the `EDITOR_API_KEY` from `.env`).
 
 Load the sample handbook (a made-up logistics company's leave, expense, incident and onboarding documents):
 
@@ -178,7 +177,7 @@ Run the evaluation:
 
 ```bash
 docker compose run --rm api python -m docs_qa.evaluation eval/handbook-questions.jsonl --collection "Brightline handbook"
-# add --answers to also generate and judge answers (needs OPENAI_API_KEY)
+# add --answers to also generate and judge answers
 ```
 
 Environment variables are listed in [.env.example](.env.example). Every setting in [settings.py](backend/src/docs_qa/settings.py) can be overridden with a variable such as `RETRIEVAL__MIN_SIMILARITY=0.5` or `CHUNKING__MAX_WORDS=200`.
@@ -245,7 +244,7 @@ For quality I have a set of 28 questions with the file and passage that answers 
 - **`FOR UPDATE SKIP LOCKED`**: locks the selected row and skips rows other transactions have locked, so concurrent workers each get a different document.
 - **HNSW**: a graph index for approximate nearest neighbours; `vector_cosine_ops` makes `<=>` (cosine distance) use it. Searches are approximate, trading a little recall for speed.
 - **`tsvector` and generated columns**: `search_vector` is `GENERATED ALWAYS AS (to_tsvector('english', text)) STORED`, so it can never go out of sync with the text, and a GIN index makes `@@` fast.
-- **nomic-embed-text prefixes**: the model was trained with `search_document:` and `search_query:` prefixes; leaving them out lowers retrieval quality. Ollama returns normalised vectors.
+- **OpenAI embeddings**: `text-embedding-3-small` returns 1536-dimension vectors normalised to length 1, so cosine distance and dot product rank the same. Requests are batched (100 chunks per call); each input must stay under 8,192 tokens, which 300-word chunks do easily.
 - **OpenAI Responses API**: `instructions` is separate from `input`; streaming yields typed events (`response.output_text.delta`, `response.completed` with usage); `store=false` keeps responses out of OpenAI's stored history.
 - **Pydantic v2**: request bodies are validated at the boundary with `StringConstraints`; an alias generator gives camelCase JSON with snake_case Python.
 - **Angular signals**: component state is in signals; the answer text grows with `update` as deltas arrive, and `computed` re-splits it into text and citation segments.
@@ -256,7 +255,7 @@ For quality I have a set of 28 questions with the file and passage that answers 
 - Load test retrieval with k6 on 50,000 chunks and record p95 latency.
 - Rerank the fused candidates with a cross-encoder, if evaluation shows the right passage is retrieved but ranked low.
 - Rewrite follow-up questions into standalone ones so conversations work.
-- OpenTelemetry traces across API, database, Ollama and OpenAI.
+- OpenTelemetry traces across API, database and OpenAI.
 - Per-collection access control instead of global roles.
 - OCR for scanned PDFs, and Word documents.
 - A judge model different from the answer model.

@@ -11,13 +11,8 @@ class DatabaseSettings(BaseModel):
 
 
 class EmbeddingSettings(BaseModel):
-    ollama_url: str = "http://localhost:11434"
-    model: str = "nomic-embed-text"
-    # nomic-embed-text was trained with these task prefixes; without them retrieval is worse.
-    document_prefix: str = "search_document: "
-    query_prefix: str = "search_query: "
-    batch_size: int = 32
-    timeout_seconds: float = 60
+    model: str = "text-embedding-3-small"
+    batch_size: int = 100
 
 
 class OpenAISettings(BaseModel):

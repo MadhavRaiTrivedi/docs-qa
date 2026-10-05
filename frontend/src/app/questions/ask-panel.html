@@ -28,26 +28,6 @@
       [rating]="rating()"
     />
   }
-
-  @if (searchHits(); as hits) {
-    <p class="notice">
-      Answer generation is not configured (no OpenAI API key), so these are the passages that best
-      match your question.
-    </p>
-    <ol class="sources">
-      @for (hit of hits; track hit.chunkId) {
-        <li class="source">
-          <div class="row spread">
-            <strong>{{ hit.fileName }}</strong>
-            <span class="muted small">{{ describeLocation(hit) }}</span>
-          </div>
-          <p class="source-text">{{ hit.text }}</p>
-        </li>
-      } @empty {
-        <li class="muted">No passages match.</li>
-      }
-    </ol>
-  }
 </section>
 
 @if (recent().length > 0) {

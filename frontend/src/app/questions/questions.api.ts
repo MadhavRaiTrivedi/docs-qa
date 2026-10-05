@@ -4,7 +4,7 @@ import { firstValueFrom } from 'rxjs';
 import { Session } from '../auth/session';
 import { ProblemDetails, ProblemError } from '../shared/api-error';
 import { API_KEY_HEADER } from '../shared/http-headers';
-import { AnswerEvent, Question, Rating, SearchHit, Source } from './question.model';
+import { AnswerEvent, Question, Rating, Source } from './question.model';
 import { SseParser } from './sse-parser';
 
 @Injectable({ providedIn: 'root' })
@@ -41,13 +41,6 @@ export class QuestionsApi {
         onEvent(QuestionsApi.toAnswerEvent(event.name, JSON.parse(event.data)));
       }
     }
-  }
-
-  async search(collectionId: string, query: string): Promise<SearchHit[]> {
-    const result = await firstValueFrom(
-      this.http.post<{ hits: SearchHit[] }>(`/api/collections/${collectionId}/search`, { query }),
-    );
-    return result.hits;
   }
 
   recent(collectionId: string): Promise<Question[]> {

@@ -17,7 +17,7 @@ down_revision: str | None = None
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 
-EMBEDDING_DIMENSIONS = 768
+EMBEDDING_DIMENSIONS = 1536
 STATUS_LENGTH = 20
 
 

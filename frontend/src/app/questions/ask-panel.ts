@@ -1,17 +1,9 @@
 import { DatePipe } from '@angular/common';
 import { Component, inject, input, OnInit, signal } from '@angular/core';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
-import { describeApiError, isServiceUnavailable } from '../shared/api-error';
+import { describeApiError } from '../shared/api-error';
 import { AnswerView } from './answer-view';
-import {
-  AnswerEvent,
-  AnswerOutcome,
-  describeLocation,
-  Question,
-  Rating,
-  SearchHit,
-  Source,
-} from './question.model';
+import { AnswerEvent, AnswerOutcome, Question, Rating, Source } from './question.model';
 import { QuestionsApi } from './questions.api';
 
 const MIN_QUESTION_LENGTH = 3;
@@ -27,7 +19,6 @@ export class AskPanel implements OnInit {
 
   readonly collectionId = input.required<string>();
 
-  protected readonly describeLocation = describeLocation;
   protected readonly form = inject(FormBuilder).nonNullable.group({
     question: [
       '',
@@ -45,7 +36,6 @@ export class AskPanel implements OnInit {
   protected readonly outcome = signal<AnswerOutcome | null>(null);
   protected readonly questionId = signal<string | null>(null);
   protected readonly rating = signal<Rating | null>(null);
-  protected readonly searchHits = signal<SearchHit[] | null>(null);
   protected readonly error = signal<string | null>(null);
   protected readonly recent = signal<Question[]>([]);
 
@@ -61,11 +51,7 @@ export class AskPanel implements OnInit {
       await this.questionsApi.ask(this.collectionId(), question, (event) => this.apply(event));
       await this.loadRecent();
     } catch (error) {
-      if (isServiceUnavailable(error)) {
-        await this.searchInstead(question);
-      } else {
-        this.error.set(describeApiError(error));
-      }
+      this.error.set(describeApiError(error));
     } finally {
       this.isAsking.set(false);
     }
@@ -102,22 +88,12 @@ export class AskPanel implements OnInit {
     this.rating.set(question.feedback?.rating ?? null);
   }
 
-  // Without an OpenAI key the API cannot answer, but it can still show the matching passages.
-  private async searchInstead(question: string): Promise<void> {
-    try {
-      this.searchHits.set(await this.questionsApi.search(this.collectionId(), question));
-    } catch (error) {
-      this.error.set(describeApiError(error));
-    }
-  }
-
   private reset(): void {
     this.answer.set('');
     this.sources.set([]);
     this.outcome.set(null);
     this.questionId.set(null);
     this.rating.set(null);
-    this.searchHits.set(null);
     this.error.set(null);
   }
 

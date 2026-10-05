@@ -6,7 +6,7 @@ from fastapi import Depends, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from docs_qa.answering.answer_generator import AnswerGenerator
-from docs_qa.answering.errors import LlmNotConfiguredError
+from docs_qa.answering.errors import OpenAINotConfiguredError
 from docs_qa.answering.question_answerer import QuestionAnswerer
 from docs_qa.answering.question_service import QuestionService
 from docs_qa.database import get_session
@@ -25,14 +25,16 @@ def get_app_settings(request: Request) -> Settings:
 
 
 def get_embedder(request: Request) -> Embedder:
-    embedder: Embedder = request.app.state.embedder
+    embedder: Embedder | None = request.app.state.embedder
+    if embedder is None:
+        raise OpenAINotConfiguredError()
     return embedder
 
 
 def get_answer_generator(request: Request) -> AnswerGenerator:
     generator: AnswerGenerator | None = request.app.state.answer_generator
     if generator is None:
-        raise LlmNotConfiguredError()
+        raise OpenAINotConfiguredError()
     return generator
 
 

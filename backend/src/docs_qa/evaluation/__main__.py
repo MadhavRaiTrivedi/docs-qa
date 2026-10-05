@@ -8,7 +8,6 @@ import asyncio
 import sys
 from pathlib import Path
 
-import httpx
 from openai import AsyncOpenAI
 
 from docs_qa.answering.answer_generator import TextDelta
@@ -19,31 +18,34 @@ from docs_qa.database import create_engine, create_session_factory
 from docs_qa.evaluation.dataset import EvaluationCase, load_cases
 from docs_qa.evaluation.faithfulness_judge import FaithfulnessJudge
 from docs_qa.evaluation.retrieval_metrics import first_relevant_rank, summarize
-from docs_qa.ingestion.embedding import OllamaEmbedder
+from docs_qa.ingestion.embedding import OpenAIEmbedder
 from docs_qa.library.collection_service import CollectionService
+from docs_qa.openai_client import create_openai_client
 from docs_qa.search.hybrid_retriever import HybridRetriever, RetrievalResult
 from docs_qa.settings import Settings, get_settings
 
 
 async def evaluate(dataset: Path, collection_name: str, with_answers: bool) -> None:
     settings = get_settings()
-    if with_answers and settings.openai.api_key is None:
-        sys.exit("--answers needs OPENAI_API_KEY.")
+    client = create_openai_client(settings.openai)
+    if client is None:
+        sys.exit("Evaluation needs OPENAI_API_KEY to embed the questions.")
     cases = load_cases(dataset)
     engine = create_engine(settings.database.url)
 
-    async with create_session_factory(engine)() as session, httpx.AsyncClient() as http_client:
+    async with create_session_factory(engine)() as session:
         collection = await CollectionService(session).find_by_name(collection_name)
         if collection is None:
             sys.exit(f"No collection named '{collection_name}'.")
-        embedder = OllamaEmbedder(http_client, settings.embedding)
+        embedder = OpenAIEmbedder(client, settings.embedding)
         retriever = HybridRetriever(session, embedder, settings.retrieval)
         results = [await retriever.retrieve(collection.id, case.question) for case in cases]
 
     await engine.dispose()
     _report_retrieval(cases, results, settings.retrieval.top_k)
     if with_answers:
-        await _report_answers(cases, results, settings)
+        await _report_answers(client, cases, results, settings)
+    await client.close()
 
 
 def _report_retrieval(
@@ -63,10 +65,11 @@ def _report_retrieval(
 
 
 async def _report_answers(
-    cases: list[EvaluationCase], results: list[RetrievalResult], settings: Settings
+    client: AsyncOpenAI,
+    cases: list[EvaluationCase],
+    results: list[RetrievalResult],
+    settings: Settings,
 ) -> None:
-    assert settings.openai.api_key is not None
-    client = AsyncOpenAI(api_key=settings.openai.api_key.get_secret_value())
     generator = OpenAIAnswerGenerator(client, settings.openai)
     judge = FaithfulnessJudge(client, settings.openai.model)
 

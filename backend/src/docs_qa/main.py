@@ -1,18 +1,17 @@
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
-import httpx
 from fastapi import APIRouter, FastAPI
-from openai import AsyncOpenAI
 
 from docs_qa.answering.openai_answer_generator import OpenAIAnswerGenerator
 from docs_qa.answering.routes import router as questions_router
 from docs_qa.auth.routes import router as auth_router
 from docs_qa.database import create_engine, create_session_factory
 from docs_qa.embedding_model_check import ensure_embedding_model_matches
-from docs_qa.ingestion.embedding import OllamaEmbedder
+from docs_qa.ingestion.embedding import OpenAIEmbedder
 from docs_qa.library.routes import router as library_router
 from docs_qa.logging_setup import configure_logging, log_requests
+from docs_qa.openai_client import create_openai_client
 from docs_qa.problems import register_problem_handlers
 from docs_qa.search.routes import router as search_router
 from docs_qa.settings import Settings, get_settings
@@ -25,12 +24,17 @@ def create_app(settings: Settings) -> FastAPI:
         session_factory = create_session_factory(engine)
         await ensure_embedding_model_matches(session_factory, settings.embedding.model)
 
-        async with httpx.AsyncClient() as http_client:
-            app.state.settings = settings
-            app.state.session_factory = session_factory
-            app.state.embedder = OllamaEmbedder(http_client, settings.embedding)
-            app.state.answer_generator = _answer_generator(settings)
-            yield
+        # Without a key the API still starts, so documents can be uploaded and wait for it.
+        client = create_openai_client(settings.openai)
+        app.state.settings = settings
+        app.state.session_factory = session_factory
+        app.state.embedder = OpenAIEmbedder(client, settings.embedding) if client else None
+        app.state.answer_generator = (
+            OpenAIAnswerGenerator(client, settings.openai) if client else None
+        )
+        yield
+        if client:
+            await client.close()
         await engine.dispose()
 
     app = FastAPI(
@@ -49,16 +53,6 @@ def create_app(settings: Settings) -> FastAPI:
         api.include_router(router)
     app.include_router(api)
     return app
-
-
-def _answer_generator(settings: Settings) -> OpenAIAnswerGenerator | None:
-    if settings.openai.api_key is None:
-        return None
-    client = AsyncOpenAI(
-        api_key=settings.openai.api_key.get_secret_value(),
-        timeout=settings.openai.timeout_seconds,
-    )
-    return OpenAIAnswerGenerator(client, settings.openai)
 
 
 async def _health() -> dict[str, str]:

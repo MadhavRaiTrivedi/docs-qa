@@ -33,12 +33,6 @@ export function describeApiError(error: unknown): string {
   return describeProblem(error.error as ProblemDetails | null, error.status);
 }
 
-export function isServiceUnavailable(error: unknown): boolean {
-  const status =
-    error instanceof ProblemError || error instanceof HttpErrorResponse ? error.status : null;
-  return status === HttpStatusCode.ServiceUnavailable;
-}
-
 function describeProblem(problem: ProblemDetails | null, status: number): string {
   const validationMessages = Object.entries(problem?.errors ?? {}).flatMap(([field, messages]) =>
     messages.map((message) => (field ? `${field}: ${message}` : message)),

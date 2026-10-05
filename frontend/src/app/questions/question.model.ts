@@ -44,17 +44,6 @@ export interface Question {
   feedback: Feedback | null;
 }
 
-export interface SearchHit {
-  chunkId: string;
-  documentId: string;
-  fileName: string;
-  pageNumber: number | null;
-  headingPath: string[];
-  text: string;
-  score: number;
-  similarity: number | null;
-}
-
 export type AnswerEvent =
   | { type: 'sources'; sources: Source[] }
   | { type: 'delta'; text: string }

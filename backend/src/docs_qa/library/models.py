@@ -25,9 +25,9 @@ from docs_qa.database import Base
 from docs_qa.library.enums import DocumentStatus, FileFormat
 from docs_qa.library.errors import InvalidDocumentTransitionError, LeaseLostError
 
-# Fixed by the embedding model (nomic-embed-text) and baked into the migration.
+# Fixed by the embedding model (text-embedding-3-small) and baked into the migration.
 # A model with another size needs a new migration and a full re-ingestion.
-EMBEDDING_DIMENSIONS = 768
+EMBEDDING_DIMENSIONS = 1536
 
 _ALLOWED_TRANSITIONS: dict[DocumentStatus, frozenset[DocumentStatus]] = {
     DocumentStatus.UPLOADED: frozenset({DocumentStatus.PROCESSING}),

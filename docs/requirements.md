@@ -73,9 +73,9 @@ Priority uses MoSCoW: **M**ust, **S**hould, **C**ould.
 | NFR-06 | **Answer quality target**: retrieval hit rate@6 of at least 0.85 on the evaluation set, measured with the evaluation command before any change to chunking or retrieval is merged. |
 | NFR-07 | **Cost visibility**: input, output and cached token counts are stored per question. Questions with no relevant passage never reach the LLM. |
 | NFR-08 | **Observability**: structured JSON logs with a request ID on every line, one log line per request and per ingestion, and latency and token usage stored with every question. |
-| NFR-09 | **Security**: API key authentication with `Reader` and `Editor` roles, compared in constant time. The OpenAI API key is read from the environment, given only to the API container, and never logged. Answers are requested with `store=false`, so OpenAI does not keep them for later retrieval. |
+| NFR-09 | **Security**: API key authentication with `Reader` and `Editor` roles, compared in constant time. The OpenAI API key is read from the environment, given only to the API and worker containers, and never logged. Answers are requested with `store=false`, so OpenAI does not keep them for later retrieval. |
 | NFR-10 | **Testability**: chunking, ranking fusion and status rules covered by unit tests; ingestion and the question flow covered by integration tests against real PostgreSQL with pgvector (Testcontainers). The LLM and embedding model are replaced by fakes in tests. |
-| NFR-11 | **Local setup**: the whole system, including the embedding model, runs with `docker compose up`. Only an OpenAI API key is needed from outside, and only for generated answers: upload, ingestion and search work without it. |
+| NFR-11 | **Local setup**: the whole system runs with `docker compose up`. An OpenAI API key is the only thing needed from outside. Without it the API still starts and accepts uploads, which are ingested once the key is set. |
 
 ## 6. Out of scope
 
@@ -109,7 +109,7 @@ These defaults were chosen to keep scope realistic.
 |---|---|---|
 | Language | Python 3.13 with FastAPI | The RAG and evaluation ecosystem is Python-first, and it is what AI engineering roles ask for. |
 | Answer model | OpenAI `gpt-5.4-mini` (configurable) through the official `openai` SDK and the Responses API, streamed | Cheap and fast enough for short grounded answers. Citations come from `[n]` markers the model is told to write, parsed and checked against the numbered sources. |
-| Embedding model | `nomic-embed-text` served by Ollama in Docker | Runs locally for free, 768 dimensions, good retrieval quality for its size. |
+| Embedding model | OpenAI `text-embedding-3-small`, 1536 dimensions | No model to host or download, strong retrieval quality, and one provider and one key for the whole system. The cost is small next to answer generation. |
 | Vector store | PostgreSQL with pgvector | One database for documents, chunks, vectors, full-text search and jobs. A dedicated vector database is not needed at this size. |
 | Ingestion queue | The `documents` table itself, polled with `SELECT ... FOR UPDATE SKIP LOCKED` | Reliable and transactional without adding a message broker or a second table to keep in sync. |
 | Retrieval | Hybrid (vector + full-text) with RRF, top 6 chunks | Vector search misses exact terms like policy codes; keyword search misses paraphrases. Together they cover both. |
