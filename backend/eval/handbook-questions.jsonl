@@ -1,0 +1,28 @@
+{"question": "How many days of annual leave do I get?", "expected_document": "leave-policy.md", "expected_passage": "22 days of paid annual leave per calendar year"}
+{"question": "Can I carry unused vacation days into next year?", "expected_document": "leave-policy.md", "expected_passage": "Up to 5 unused days can be carried over"}
+{"question": "When do carried-over leave days expire?", "expected_document": "leave-policy.md", "expected_passage": "not taken by 31 March are lost"}
+{"question": "How far ahead must I ask for a long holiday?", "expected_document": "leave-policy.md", "expected_passage": "at least 2 weeks in advance"}
+{"question": "How much sick leave is there?", "expected_document": "leave-policy.md", "expected_passage": "12 days of paid sick leave"}
+{"question": "When do I need a doctor's note?", "expected_document": "leave-policy.md", "expected_passage": "absences longer than 3 consecutive days"}
+{"question": "How long is maternity leave?", "expected_document": "leave-policy.md", "expected_passage": "26 weeks of paid parental leave"}
+{"question": "How much paternity leave does the second parent get?", "expected_document": "leave-policy.md", "expected_passage": "secondary caregiver gets 4 weeks"}
+{"question": "What leave do I get if a family member dies?", "expected_document": "leave-policy.md", "expected_passage": "5 days of paid bereavement leave"}
+{"question": "What is the deadline for submitting an expense claim?", "expected_document": "expense-policy.md", "expected_passage": "within 30 days of the purchase"}
+{"question": "Do I need a receipt for small expenses?", "expected_document": "expense-policy.md", "expected_passage": "itemised receipt for any expense above 500 rupees"}
+{"question": "When are expenses paid back?", "expected_document": "expense-policy.md", "expected_passage": "paid with the next monthly salary"}
+{"question": "Can I take a taxi on a work trip?", "expected_document": "expense-policy.md", "expected_passage": "Taxis and ride-hailing are reimbursed when public transport is not practical"}
+{"question": "What is the daily food allowance in Mumbai?", "expected_document": "expense-policy.md", "expected_passage": "1,500 rupees per day in metro cities"}
+{"question": "Will the company pay for drinks at dinner?", "expected_document": "expense-policy.md", "expected_passage": "Alcohol is never reimbursed"}
+{"question": "Can I expense a monitor for working from home?", "expected_document": "expense-policy.md", "expected_passage": "needs pre-approval from your manager"}
+{"question": "Which class should I fly on a short trip?", "expected_document": "expense-policy.md", "expected_passage": "Economy class is the default for flights shorter than 6 hours"}
+{"question": "What counts as a SEV1 incident?", "expected_document": "incident-runbook.md", "expected_passage": "tracking is down for all customers"}
+{"question": "Tracking updates stopped after a release, what should I do first?", "expected_document": "incident-runbook.md", "expected_passage": "roll it back before investigating further"}
+{"question": "How big can the webhook queue get before it is a problem?", "expected_document": "incident-runbook.md", "expected_passage": "queue above 10,000 messages"}
+{"question": "How often do we update the status page during a major outage?", "expected_document": "incident-runbook.md", "expected_passage": "every 30 minutes during a SEV1"}
+{"question": "When is the postmortem due?", "expected_document": "incident-runbook.md", "expected_passage": "within 5 working days"}
+{"question": "When does my laptop arrive?", "expected_document": "onboarding-guide.md", "expected_passage": "2 days before you start"}
+{"question": "What do I need to do before I can access production?", "expected_document": "onboarding-guide.md", "expected_passage": "security training, which is mandatory"}
+{"question": "Who approves access to customer data?", "expected_document": "onboarding-guide.md", "expected_passage": "your manager and the data protection officer"}
+{"question": "How long is probation?", "expected_document": "onboarding-guide.md", "expected_passage": "The probation period is 6 months"}
+{"question": "What is the notice period after probation?", "expected_document": "onboarding-guide.md", "expected_passage": "after probation it is 2 months"}
+{"question": "Who helps new joiners settle in?", "expected_document": "onboarding-guide.md", "expected_passage": "gets a buddy from another team"}
