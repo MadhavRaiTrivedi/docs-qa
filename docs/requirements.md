@@ -45,7 +45,7 @@ Priority uses MoSCoW: **M**ust, **S**hould, **C**ould.
 | ID | Requirement | Priority |
 |---|---|---|
 | FR-09 | A reader can ask a question in a collection and receive an answer generated only from that collection's documents. | M |
-| FR-10 | Every answer lists its sources: document name, page or heading, and the quoted passage. Each claim in the answer links to the source that supports it. | M |
+| FR-10 | Every answer lists its sources: document name, page or heading, and the passage. Each claim in the answer carries a `[n]` marker that links to the source supporting it. | M |
 | FR-11 | If no retrieved chunk is relevant enough, the service answers that the documents do not cover the question, without calling the LLM. | M |
 | FR-12 | Retrieval combines vector similarity and full-text keyword search, merged with Reciprocal Rank Fusion. | M |
 | FR-13 | The answer streams to the client token by token (Server-Sent Events). | S |
@@ -66,16 +66,16 @@ Priority uses MoSCoW: **M**ust, **S**hould, **C**ould.
 | ID | Requirement |
 |---|---|
 | NFR-01 | **Grounded answers**: the LLM is instructed to answer only from the supplied passages and to cite them. An answer with no citation is shown as unsupported. |
-| NFR-02 | **Prompt injection**: document text is passed to the LLM as data in document blocks, never merged into the system prompt. Instructions found inside documents are not followed. |
+| NFR-02 | **Prompt injection**: document text is passed to the LLM as escaped, numbered `<source>` blocks in the input, never merged into the instructions. The instructions tell the model to ignore instructions found inside sources. |
 | NFR-03 | **Ingestion reliability**: a worker crash during ingestion never leaves a document half-indexed. Chunks of a document are written in one transaction, and a job stuck in `Processing` past a timeout is picked up again. |
 | NFR-04 | **Embedding model consistency**: each chunk records the embedding model that produced it. Questions are embedded with the same model. Changing the model requires re-ingestion and is never mixed silently. |
 | NFR-05 | **Performance target**: retrieval p95 under 150 ms on a collection of 50,000 chunks, and time to first answer token p95 under 3 s, measured with a load test on a single developer machine. |
-| NFR-06 | **Answer quality target**: retrieval hit rate@5 of at least 0.85 on the evaluation set, tracked in CI so a change that lowers it is visible. |
-| NFR-07 | **Cost visibility**: input, output and cached token counts are stored per question, and the system prompt is structured so prompt caching applies. |
-| NFR-08 | **Observability**: structured JSON logs with a request ID, OpenTelemetry traces across API, database, embedding and LLM calls, and metrics for ingestion lag, retrieval latency and token usage. |
-| NFR-09 | **Security**: API key authentication with `Reader` and `Editor` roles. The Anthropic API key is read from the environment and never logged. |
+| NFR-06 | **Answer quality target**: retrieval hit rate@6 of at least 0.85 on the evaluation set, measured with the evaluation command before any change to chunking or retrieval is merged. |
+| NFR-07 | **Cost visibility**: input, output and cached token counts are stored per question. Questions with no relevant passage never reach the LLM. |
+| NFR-08 | **Observability**: structured JSON logs with a request ID on every line, one log line per request and per ingestion, and latency and token usage stored with every question. |
+| NFR-09 | **Security**: API key authentication with `Reader` and `Editor` roles, compared in constant time. The OpenAI API key is read from the environment, given only to the API container, and never logged. Answers are requested with `store=false`, so OpenAI does not keep them for later retrieval. |
 | NFR-10 | **Testability**: chunking, ranking fusion and status rules covered by unit tests; ingestion and the question flow covered by integration tests against real PostgreSQL with pgvector (Testcontainers). The LLM and embedding model are replaced by fakes in tests. |
-| NFR-11 | **Local setup**: the whole system, including the embedding model, runs with `docker compose up`. Only the Anthropic API key is needed from outside. |
+| NFR-11 | **Local setup**: the whole system, including the embedding model, runs with `docker compose up`. Only an OpenAI API key is needed from outside, and only for generated answers: upload, ingestion and search work without it. |
 
 ## 6. Out of scope
 
@@ -103,16 +103,16 @@ Priority uses MoSCoW: **M**ust, **S**hould, **C**ould.
 
 ## 8. Decisions taken
 
-These defaults were chosen to keep scope realistic. Revisit before implementation starts.
+These defaults were chosen to keep scope realistic.
 
 | Decision | Choice | Reason |
 |---|---|---|
 | Language | Python 3.13 with FastAPI | The RAG and evaluation ecosystem is Python-first, and it is what AI engineering roles ask for. |
-| Answer model | Claude (`claude-opus-5-5`) through the official `anthropic` SDK | Built-in citations on document blocks give claim-level sources without parsing the model's text. |
+| Answer model | OpenAI `gpt-5.4-mini` (configurable) through the official `openai` SDK and the Responses API, streamed | Cheap and fast enough for short grounded answers. Citations come from `[n]` markers the model is told to write, parsed and checked against the numbered sources. |
 | Embedding model | `nomic-embed-text` served by Ollama in Docker | Runs locally for free, 768 dimensions, good retrieval quality for its size. |
 | Vector store | PostgreSQL with pgvector | One database for documents, chunks, vectors, full-text search and jobs. A dedicated vector database is not needed at this size. |
 | Ingestion queue | The `documents` table itself, polled with `SELECT ... FOR UPDATE SKIP LOCKED` | Reliable and transactional without adding a message broker or a second table to keep in sync. |
-| Retrieval | Hybrid (vector + full-text) with RRF | Vector search misses exact terms like policy codes; keyword search misses paraphrases. Together they cover both. |
-| Chunking | Split by headings and paragraphs, about 400 tokens with 15% overlap | Keeps chunks on one topic and keeps the page or heading for citations. |
+| Retrieval | Hybrid (vector + full-text) with RRF, top 6 chunks | Vector search misses exact terms like policy codes; keyword search misses paraphrases. Together they cover both. |
+| Chunking | Split by headings and paragraphs, at most 300 words (about 400 tokens) with a 45-word overlap | Keeps chunks on one topic and keeps the page or heading for citations. Counting words instead of tokens avoids shipping a tokenizer for a limit that only needs to be approximate. |
 | Reranking | Could-have, added only if evaluation shows retrieval is the weak point | Adds latency and a model to host; measure first. |
 | Auth | Static API keys mapped to roles | Enough to show role checks without building an identity server. |
